@@ -193,5 +193,5 @@ class CalculadoraAgentes(Model):
 
 if __name__ == '__main__':
     calculadora = CalculadoraAgentes()
-    expresion = "5 + ()"
+    expresion = "5 + (4)"
     calculadora.agente_entrada_salida.recibir_expresion(expresion)
