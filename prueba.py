@@ -1,187 +1,193 @@
-from mesa import Agent, Model  # Importamos las clases base de Mesa
-from mesa.time import RandomActivation  # Para activación aleatoria de agentes
-import sympy  # Biblioteca para manejo de expresiones matemáticas
-from collections import deque  # Para implementar colas de mensajes
+from mesa import Agent, Model
+from mesa.time import RandomActivation
+import sympy
+from collections import deque
+from mesa.time import SimultaneousActivation
 
-# Clase para representar mensajes entre agentes
-class Message:
-    """
-    Clase que representa un mensaje entre agentes.
-    Facilita la comunicación asíncrona en el sistema.
-    """
-    def __init__(self, sender, receiver, content, operation_id):
-        self.sender = sender          # ID del agente que envía el mensaje
-        self.receiver = receiver      # ID del agente que debe recibir el mensaje
-        self.content = content        # Contenido del mensaje (operación o resultado)
-        self.operation_id = operation_id  # ID único para rastrear la operación
 
-# Agente principal de Entrada/Salida
-class IOAgent(Agent):
-    """
-    Agente que maneja la entrada de expresiones y la salida de resultados.
-    Actúa como coordinador principal del sistema.
-    """
+class AgenteSuma(Agent):
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
-        self.expression = None                # Expresión matemática a procesar
-        self.results = {}                     # Diccionario para almacenar resultados parciales
-        self.pending_operations = deque()     # Cola de operaciones pendientes
-        self.operation_counter = 0            # Contador para generar IDs únicos de operación
 
-    def set_expression(self, expr):
-        """
-        Configura una nueva expresión para procesar y reinicia el estado del agente.
-        """
-        self.expression = expr
-        self.results.clear()              # Limpia resultados anteriores
-        self.pending_operations.clear()    # Limpia operaciones pendientes
-        self.operation_counter = 0         # Reinicia el contador de operaciones
+    def step(self):
+        mensaje = self.model.obtener_mensaje(self.unique_id)
+        if mensaje and mensaje.operacion == 'SUMA':
+            resultado = sum(mensaje.operandos)
+            self.model.enviar_resultado(self.unique_id, resultado)
 
-    def validate_expression(self):
-        """
-        Valida la expresión matemática usando SymPy.
-        Convierte la expresión string en un objeto SymPy para su procesamiento.
-        """
-        try:
-            self.valid_expr = sympy.sympify(self.expression)
-            print(f"Expresión válida: {self.valid_expr}")
-            return True
-        except sympy.SympifyError:
-            print(f"Expresión inválida: {self.expression}")
-            return False
+class AgenteResta(Agent):
+    def __init__(self, unique_id, model):
+        super().__init__(unique_id, model)
 
-    def distribute_operations(self):
-        """
-        Analiza la expresión y distribuye las operaciones a los agentes correspondientes.
-        Usa el recorrido preorder de SymPy para respetar la precedencia de operadores.
-        """
-        # Obtiene lista de operaciones en orden de precedencia
-        operaciones = list(sympy.preorder_traversal(self.valid_expr))
+    def step(self):
+        mensaje = self.model.obtener_mensaje(self.unique_id)
+        if mensaje and mensaje.operacion == 'RESTA':
+            resultado = mensaje.operandos[0] - mensaje.operandos[1]
+            self.model.enviar_resultado(self.unique_id, resultado)
+
+class AgenteMultiplicacion(Agent):
+    def __init__(self, unique_id, model):
+        super().__init__(unique_id, model)
+
+    def step(self):
+        mensaje = self.model.obtener_mensaje(self.unique_id)
+        if mensaje and mensaje.operacion == 'MULTIPLICACION':
+            resultado = mensaje.operandos[0] * mensaje.operandos[1]
+            self.model.enviar_resultado(self.unique_id, resultado)
+
+class AgenteDivision(Agent):
+    def __init__(self, unique_id, model):
+        super().__init__(unique_id, model)
+
+    def step(self):
+        mensaje = self.model.obtener_mensaje(self.unique_id)
+        if mensaje and mensaje.operacion == 'DIVISION':
+            resultado = mensaje.operandos[0] / mensaje.operandos[1]
+            self.model.enviar_resultado(self.unique_id, resultado)
+
+class AgentePotencia(Agent):
+    def __init__(self, unique_id, model):
+        super().__init__(unique_id, model)
+
+    def step(self):
+        mensaje = self.model.obtener_mensaje(self.unique_id)
+        if mensaje and mensaje.operacion == 'POTENCIA':
+            resultado = mensaje.operandos[0] ** mensaje.operandos[1]
+            self.model.enviar_resultado(self.unique_id, resultado)
+
+#clase token
+class Token:
+    def __init__(self, tipo, valor):
+        self.tipo = tipo  # 'OPERADOR', 'NUMERO', 'PARENTESIS'
+        self.valor = valor
+
+    def __repr__(self):
+        return f'Token({self.tipo}, {self.valor})'
+
+#clase mensaje
+class Mensaje:
+    def __init__(self, operacion, operandos):
+        self.operacion = operacion  # Ej: 'SUMA', 'RESTA', 'MULTIPLICACION', etc.
+        self.operandos = operandos  # Lista de operandos (números)
+
+    def __repr__(self):
+        return f'Mensaje({self.operacion}, {self.operandos})'
+
+class AgenteEntradaSalida(Agent):
+    def __init__(self, unique_id, model):
+        super().__init__(unique_id, model)
+
+    def recibir_expresion(self, expresion):
+        #validar expresion para asi tokenizar
+        if sympy.sympify(expresion):
+            tokens = self.tokenizar_expresion(expresion)
+            salida = self.shunting_yard(tokens)
+            resultado = self.evaluar_postfija(salida)
+            print(f"Resultado final: {resultado}")
+
+
+    def tokenizar_expresion(self, expresion):
+        # Quitar espacios y convertir la expresión en tokens (simplificado)
+        tokens = []
+        num = ""
+        for char in expresion:
+            if char.isdigit() or char == '.':
+                num += char
+            else:
+                if num:
+                    tokens.append(Token('NUMERO', float(num)))
+                    num = ""
+                if char in "+-*/^()":
+                    tokens.append(Token('OPERADOR' if char != '(' and char != ')' else 'PARENTESIS', char))
+        if num:
+            tokens.append(Token('NUMERO', float(num)))
+        return tokens
+
+    def shunting_yard(self, tokens):
+        #diccionario con jerarquia de operadores
+        precedencia = {'+': 1, '-': 1, '*': 2, '/': 2, '^': 3}
         
-        for op in operaciones:
-            self.operation_counter += 1
-            # Determina el tipo de operación y envía al agente correspondiente
-            if isinstance(op, sympy.Add):
-                self.model.message_queue.append(
-                    Message(self.unique_id, 'suma', op, self.operation_counter)
-                )
-            elif isinstance(op, sympy.Mul):
-                self.model.message_queue.append(
-                    Message(self.unique_id, 'multiplicacion', op, self.operation_counter)
-                )
-            elif isinstance(op, sympy.Pow):
-                self.model.message_queue.append(
-                    Message(self.unique_id, 'potencia', op, self.operation_counter)
-                )
-            self.pending_operations.append(self.operation_counter)
+        #pilas operadores y salida
+        operadores = []
+        salida = []
+        for token in tokens:
+            if token.tipo == 'NUMERO':
+                salida.append(token)
+            elif token.tipo == 'OPERADOR':
+                while (operadores and operadores[-1].valor != '(' and precedencia.get(operadores[-1].valor, 0) >= precedencia[token.valor]):
+                    salida.append(operadores.pop())
+                operadores.append(token)
+            elif token.valor == '(':
+                operadores.append(token)
+            elif token.valor == ')':
+                while operadores and operadores[-1].valor != '(':
+                    salida.append(operadores.pop())
+                operadores.pop()
+        while operadores:
+            salida.append(operadores.pop())
+        return salida
 
-    def step(self):
-        """
-        Método ejecutado en cada paso del modelo.
-        Procesa la expresión y maneja los resultados.
-        """
-        # Si hay una nueva expresión, procesarla
-        if self.expression and self.validate_expression():
-            self.distribute_operations()
-            
-        # Procesar mensajes recibidos
-        for msg in list(self.model.message_queue):
-            if msg.receiver == self.unique_id:  # Si el mensaje es para este agente
-                self.results[msg.operation_id] = msg.content  # Almacenar resultado
-                self.model.message_queue.remove(msg)  # Eliminar mensaje procesado
-                if msg.operation_id in self.pending_operations:
-                    self.pending_operations.remove(msg.operation_id)
+    def evaluar_postfija(self, tokens):
+        pila = []
+        for token in tokens:
+            if token.tipo == 'NUMERO':
+                pila.append(token.valor)
+            else:
+                operando2 = pila.pop()
+                operando1 = pila.pop()
+                if token.valor == '+':
+                    mensaje = Mensaje('SUMA', [operando1, operando2])
+                    pila.append(self.model.enviar_mensaje_y_esperar_resultado('suma', mensaje))
+                elif token.valor == '-':
+                    mensaje = Mensaje('RESTA', [operando1, operando2])
+                    pila.append(self.model.enviar_mensaje_y_esperar_resultado('resta', mensaje))
+                elif token.valor == '*':
+                    mensaje = Mensaje('MULTIPLICACION', [operando1, operando2])
+                    pila.append(self.model.enviar_mensaje_y_esperar_resultado('multiplicacion', mensaje))
+                elif token.valor == '/':
+                    mensaje = Mensaje('DIVISION', [operando1, operando2])
+                    pila.append(self.model.enviar_mensaje_y_esperar_resultado('division', mensaje))
+                elif token.valor == '^':
+                    mensaje = Mensaje('POTENCIA', [operando1, operando2])
+                    pila.append(self.model.enviar_mensaje_y_esperar_resultado('potencia', mensaje))
+        return pila[0]
 
-        # Si todas las operaciones están completadas, calcular resultado final
-        if not self.pending_operations and self.results:
-            final_result = sum(self.results.values())
-            print(f"Resultado final: {final_result}")
-
-# Clase base para agentes de operación
-class OperationAgent(Agent):
-    """
-    Clase base para todos los agentes que realizan operaciones matemáticas.
-    Define la estructura común y comportamiento básico.
-    """
-    def __init__(self, unique_id, model, operation_type):
-        super().__init__(unique_id, model)
-        self.operation_type = operation_type    # Tipo de operación que maneja
-        self.pending_operations = {}            # Operaciones pendientes de procesar
-
-    def process_operation(self, operation):
-        """
-        Procesa una operación matemática.
-        Método base que debe ser implementado por las subclases.
-        """
-        result = operation.evalf()  # Evalúa la expresión usando SymPy
-        return float(result)
-
-    def step(self):
-        """
-        Procesa los mensajes pendientes en cada paso del modelo.
-        """
-        # Revisar mensajes en la cola
-        for msg in list(self.model.message_queue):
-            if msg.receiver == self.operation_type:  # Si el mensaje es para este tipo de operación
-                result = self.process_operation(msg.content)  # Procesar operación
-                # Enviar resultado de vuelta al IOAgent
-                self.model.message_queue.append(
-                    Message(self.unique_id, 1, result, msg.operation_id)
-                )
-                self.model.message_queue.remove(msg)  # Eliminar mensaje procesado
-
-# Agente especializado para operaciones de potencia
-class PotenciaAgent(OperationAgent):
-    """
-    Agente específico para manejar operaciones de potencia.
-    """
-    def __init__(self, unique_id, model):
-        super().__init__(unique_id, model, 'potencia')
-
-    def process_operation(self, operation):
-        """
-        Procesa específicamente operaciones de potencia.
-        """
-        base, exp = operation.as_base_exp()  # Obtiene base y exponente
-        return float(base ** exp)  # Calcula la potencia
-
-# Modelo principal que coordina todos los agentes
-class CalculadoraModel(Model):
-    """
-    Modelo principal que coordina la calculadora distribuida.
-    Mantiene y gestiona todos los agentes y la cola de mensajes.
-    """
+class CalculadoraAgentes(Model):
     def __init__(self):
-        super().__init__()
-        self.schedule = RandomActivation(self)  # Scheduler para activación de agentes
-        self.message_queue = deque()  # Cola central de mensajes
-        
-        # Crear instancias de todos los agentes necesarios
-        self.io_agent = IOAgent(1, self)
-        self.suma_agent = OperationAgent(2, self, 'suma')
-        self.resta_agent = OperationAgent(3, self, 'resta')
-        self.multi_agent = OperationAgent(4, self, 'multiplicacion')
-        self.div_agent = OperationAgent(5, self, 'division')
-        self.potencia_agent = PotenciaAgent(6, self)
-        
-        # Agregar todos los agentes al scheduler
-        for agent in [self.io_agent, self.suma_agent, self.resta_agent, 
-                     self.multi_agent, self.div_agent, self.potencia_agent]:
-            self.schedule.add(agent)
+        super().__init__()  # Llama al constructor de la clase Model
+        self.schedule = SimultaneousActivation(self)
 
-    def step(self):
-        """
-        Ejecuta un paso del modelo, activando todos los agentes.
-        """
-        self.schedule.step()
+        # Crear los agentes de operación
+        self.agente_suma = AgenteSuma("suma", self)
+        self.agente_resta = AgenteResta("resta", self)
+        self.agente_multiplicacion = AgenteMultiplicacion("multiplicacion", self)
+        self.agente_division = AgenteDivision("division", self)
+        self.agente_potencia = AgentePotencia("potencia", self)
+        self.agente_entrada_salida = AgenteEntradaSalida("entrada_salida", self)
 
-# Código de ejemplo para probar el sistema
-if __name__ == "__main__":
-    # Crear instancia del modelo
-    model = CalculadoraModel()
-    
-    # Lista de expresiones de prueba
-    model = CalculadoraModel()
-  expresion = "(2 + 3 ** (4 - 1)/0)"
-  model.io_agent.set_expression(expresion)
-  model.step()
+        # Añadir los agentes al scheduler
+        self.schedule.add(self.agente_suma)
+        self.schedule.add(self.agente_resta)
+        self.schedule.add(self.agente_multiplicacion)
+        self.schedule.add(self.agente_division)
+        self.schedule.add(self.agente_potencia)
+        self.schedule.add(self.agente_entrada_salida)
+
+        # Diccionario para gestionar mensajes
+        self.mensajes = {}
+
+    def enviar_mensaje_y_esperar_resultado(self, agente_id, mensaje):
+        self.mensajes[agente_id] = mensaje
+        self.schedule.step()  # Simular un paso
+        return self.mensajes.get(f"resultado_{agente_id}")
+
+    def obtener_mensaje(self, agente_id):
+        return self.mensajes.pop(agente_id, None)
+
+    def enviar_resultado(self, agente_id, resultado):
+        self.mensajes[f"resultado_{agente_id}"] = resultado
+
+if __name__ == '__main__':
+    calculadora = CalculadoraAgentes()
+    expresion = "(2*(3 * 44) - 5) ^ ((4+3-1)*2)"
+    calculadora.agente_entrada_salida.recibir_expresion(expresion)
