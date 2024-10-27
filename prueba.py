@@ -62,6 +62,7 @@ class AgenteOperacion(Agent):
         self.num2 = num2
 
     def operacion(self):
+        # si no se implementa en las subclases
         print(f"La operación no está definida para el agente con ID {self.unique_id}")
         return None  
 
@@ -70,45 +71,22 @@ class AgenteOperacion(Agent):
 
 class AgenteSuma(AgenteOperacion):
     def operacion(self):
-        #en caso de sumar con cero:
-        if self.num1 == 0:
-            return self.num2
-        if self.num2 == 0:
-            return self.num1
-        #suma normal:
         return self.num1 + self.num2
 
 class AgenteResta(AgenteOperacion):
     def operacion(self):
-        # caso de resta con cero
-        if self.num2 == 0:
-            return self.num1
         return self.num1 - self.num2
 
 class AgenteMultiplicacion(AgenteOperacion):
     def operacion(self):
-        # caso de multiplicación por cero
-        if self.num1 == 0 or self.num2 == 0:
-            return 0
         return self.num1 * self.num2
 
 class AgenteDivision(AgenteOperacion):
     def operacion(self):
-        # caso  división por cero
-        if self.num2 == 0:
-            raise ZeroDivisionError("División por cero no permitida")
-        #caso numerador cero
-        if self.num1 == 0:
-            return 0
-        #caso normal
         return self.num1 / self.num2
 
 class AgentePotencia(AgenteOperacion):
     def operacion(self):
-        if self.num2 == 0:
-            return 1
-        if self.num1 == 0:
-            return 0
         return self.num1 ** self.num2
 
 
@@ -240,5 +218,5 @@ class CalculadoraAgentes(Model):
 
 if __name__ == '__main__':
     calculadora = CalculadoraAgentes()
-    expresion = "7^0"
+    expresion = "7/0"
     calculadora.agenteIO.ingresar_expresion(expresion)
