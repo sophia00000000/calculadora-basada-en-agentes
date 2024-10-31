@@ -222,6 +222,7 @@ if __name__ == '__main__':
     while True:
         print("Ingrese la expresión o 'salir' para terminar: ")
         expresion = input()
+        
         if expresion.lower() == 'salir':
             break     
         calculadora.agenteIO.ingresar_expresion(expresion)
